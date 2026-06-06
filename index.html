@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>赛博校园：鹅警追击 · 赛博配乐版</title>
+    <title>赛博校园：鹅警追击 · 低跃长滞空版</title>
     <style>
         * {
             margin: 0;
@@ -256,7 +256,7 @@
 
         <div class="overlay" id="startScreen">
             <div class="game-title">🦢 赛博校园</div>
-            <div class="game-subtitle">鹅警追击 · 赛博配乐版</div>
+            <div class="game-subtitle">鹅警追击 · 低跃长滞空版</div>
             <button class="start-btn" id="startBtn">按 [空格] 开始逃亡</button>
             <div class="controls-hint">
                 <div class="control-item">
@@ -287,17 +287,15 @@
 
     <script>
         // =====================================================
-        // 赛博校园：鹅警追击 - 配乐音效版
-        // 新增：赛博背景音乐循环 + 交互音效（跳跃、收集、碰撞、警告）
-        // 保留：超长滞空、强化鹅警、3秒无敌、丰富建筑障碍物
+        // 赛博校园：鹅警追击 - 跳跃手感优化版（低高度+长滞空）
+        // 改进点：降低跳跃初速度，同时进一步降低重力，使跳跃更低但滞空更长
+        // 保留：配乐音效、强化鹅警、丰富建筑/障碍物、能量球不重叠等所有特性
         // =====================================================
 
         // ---------- 音频管理器 ----------
         const AudioManager = {
             ctx: null,
             bgGain: null,
-            bgOsc1: null,
-            bgOsc2: null,
             bgInterval: null,
             isActive: false,
             init() {
@@ -305,12 +303,11 @@
                 try {
                     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
                     this.bgGain = this.ctx.createGain();
-                    this.bgGain.gain.value = 0.15; // 背景音乐音量适中
+                    this.bgGain.gain.value = 0.15;
                     this.bgGain.connect(this.ctx.destination);
                     this.isActive = true;
                 } catch(e) { console.warn("Web Audio not supported"); }
             },
-            // 播放简单音效 (type: 'jump', 'collect', 'crash', 'alert')
             playSound(type) {
                 if (!this.ctx || !this.isActive) return;
                 const now = this.ctx.currentTime;
@@ -346,10 +343,8 @@
                 osc.start(now);
                 osc.stop(now + 0.4);
             },
-            // 启动背景音乐循环（简单的合成氛围）
             startBackgroundMusic() {
                 if (!this.ctx || this.bgInterval) return;
-                // 避免多个背景
                 const playNote = (freq, duration, gainVal) => {
                     if (!this.ctx) return;
                     const now = this.ctx.currentTime;
@@ -364,11 +359,10 @@
                     osc.start(now);
                     osc.stop(now + duration);
                 };
-                // 循环播放简单的和弦进行
                 const chordProgression = [
-                    [130.81, 164.81, 196.00], // Cm
-                    [146.83, 174.61, 220.00], // Dm
-                    [155.56, 185.00, 233.08], // D#m
+                    [130.81, 164.81, 196.00],
+                    [146.83, 174.61, 220.00],
+                    [155.56, 185.00, 233.08],
                     [130.81, 164.81, 196.00]
                 ];
                 let step = 0;
@@ -380,20 +374,13 @@
                 }, 2000);
             },
             stopBackgroundMusic() {
-                if (this.bgInterval) {
-                    clearInterval(this.bgInterval);
-                    this.bgInterval = null;
-                }
+                if (this.bgInterval) { clearInterval(this.bgInterval); this.bgInterval = null; }
             },
-            // 重置音频上下文（游戏重新开始时可不重置，但保持）
             resume() {
-                if (this.ctx && this.ctx.state === 'suspended') {
-                    this.ctx.resume();
-                }
+                if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
             }
         };
 
-        // 用户交互后初始化音频
         function enableAudioOnFirstInteraction() {
             if (AudioManager.ctx && AudioManager.ctx.state === 'running') return;
             AudioManager.init();
@@ -414,10 +401,13 @@
         const finalScore = document.getElementById('finalScore');
         const newRecord = document.getElementById('newRecord');
 
-        // ★ 核心参数（手感极佳 + 鹅警致命）
+        // ★★★ 跳跃核心参数调整：更低跳跃高度 + 更长滞空 ★★★
+        // 原 GRAVITY=0.32, JUMP_FORCE=-15.2 → 用户反馈高度太高
+        // 改进：降低重力到 0.24，减少起跳力度到 -12.5，使跳跃高度明显降低，同时下降极其缓慢，滞空极长
         const CONFIG = {
-            GRAVITY: 0.32,
-            JUMP_FORCE: -15.2,
+            GRAVITY: 0.24,              // 极低重力，空中下落非常慢
+            JUMP_FORCE: -12.5,          // 起跳力度适中，不会飞太高
+            
             PLAYER_SPEED: 4.0,
             BASE_GAME_SPEED: 4.0,
             MAX_GAME_SPEED: 11,
@@ -468,17 +458,13 @@
             if (e.code === 'Space' && gameState === 'start') startGame();
             if (e.code === 'Space' && gameState === 'ended') restartGame();
         });
-
-        document.addEventListener('keyup', (e) => {
-            keys[e.code] = false;
-        });
+        document.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
         startBtn.addEventListener('click', startGame);
         restartBtn.addEventListener('click', restartGame);
-
         highScoreDisplay.textContent = highScore + 'm';
 
-        // ========= 玩家 =========
+        // ========= 玩家 (跳跃手感重构) =========
         const player = {
             x: 140,
             y: 0,
@@ -492,8 +478,11 @@
             legAngle: 0,
 
             update() {
+                // 跳跃顶点附近重力进一步减弱，使滞空更平滑
                 let currentGravity = CONFIG.GRAVITY;
-                if (Math.abs(this.velocityY) < 2.0) currentGravity = CONFIG.GRAVITY * 0.3;
+                if (Math.abs(this.velocityY) < 1.8) {
+                    currentGravity = CONFIG.GRAVITY * 0.35;
+                }
                 this.velocityY += currentGravity;
                 this.y += this.velocityY;
                 const groundY = canvas.height - CONFIG.GROUND_HEIGHT - this.height;
@@ -508,7 +497,6 @@
                     this.isJumping = true;
                     this.jumpCount++;
                     keys['ArrowUp'] = false;
-                    // 跳跃音效
                     AudioManager.playSound('jump');
                 }
                 if (keys['ArrowLeft']) this.x -= CONFIG.PLAYER_SPEED;
@@ -568,7 +556,7 @@
             }
         };
 
-        // ========= 鹅警（极致压迫） =========
+        // ========= 鹅警（压迫感） =========
         const goosePolice = {
             x: -150,
             y: 0,
@@ -576,7 +564,6 @@
             height: 90,
             wingAngle: 0,
             threatBlink: 0,
-
             update() {
                 this.y = canvas.height - CONFIG.GROUND_HEIGHT - this.height;
                 let targetX;
@@ -592,14 +579,9 @@
                 this.x += (targetX - this.x) * 0.045;
                 this.wingAngle += 0.4;
                 this.threatBlink = (this.threatBlink + 0.15) % (Math.PI * 2);
-                
-                // 距离预警音效（间隔播放）
                 const dist = this.x + this.width - player.x;
-                if (dist > 0 && dist < 250 && frameCount % 45 === 0 && gameState === 'playing') {
-                    AudioManager.playSound('alert');
-                }
+                if (dist > 0 && dist < 250 && frameCount % 45 === 0 && gameState === 'playing') AudioManager.playSound('alert');
             },
-            
             draw() {
                 ctx.save();
                 ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -686,7 +668,6 @@
         };
 
         let obstacles = [];
-
         const OBSTACLE_TYPES = [
             { name: '课桌', baseColor: '#b85c1a', baseHeight: 35, pattern: 'stripes' },
             { name: '垃圾桶', baseColor: '#6a6a6a', baseHeight: 45, pattern: 'dots' },
@@ -783,31 +764,22 @@
         }
 
         function spawnEnergyDrink() {
-            const drinkWidth = 25;
-            const drinkHeight = 35;
-            const drinkY = canvas.height - CONFIG.GROUND_HEIGHT - 40;
+            const drinkWidth = 25, drinkHeight = 35, drinkY = canvas.height - CONFIG.GROUND_HEIGHT - 40;
             let candidateX = canvas.width + 50;
-            const collidesWithObstacles = (x, y, w, h) => {
+            const collides = (x, y, w, h) => {
                 for (let obs of obstacles) {
                     if (x < obs.x + obs.width && x + w > obs.x && y < obs.y + obs.height && y + h > obs.y) return true;
                 }
                 return false;
             };
-            if (!collidesWithObstacles(candidateX, drinkY, drinkWidth, drinkHeight)) {
-                energyDrinks.push({
-                    x: candidateX,
-                    y: drinkY,
-                    width: drinkWidth,
-                    height: drinkHeight,
-                    collected: false
-                });
+            if (!collides(candidateX, drinkY, drinkWidth, drinkHeight)) {
+                energyDrinks.push({ x: candidateX, y: drinkY, width: drinkWidth, height: drinkHeight, collected: false });
             }
         }
 
-        // ========= 建筑系统 =========
+        // ========= 建筑系统（丰富背景） =========
         let bgOffset = 0;
-        const BUILDING_COUNT = 55;
-        const BUILDING_SPACING = 65;
+        const BUILDING_COUNT = 55, BUILDING_SPACING = 65;
         const buildings = [];
         const neonColors = ['#00ffff', '#ff00ff', '#ffff00', '#00ff88', '#ff6600', '#ff3366', '#33ffcc'];
         const ROOF_TYPES = ['flat', 'spike', 'dome', 'antenna', 'double_antenna'];
@@ -832,8 +804,7 @@
             ctx.strokeRect(x + 2, canvas.height - CONFIG.GROUND_HEIGHT - h, w - 4, h);
             ctx.shadowBlur = 0;
             const windowWidth = 9, windowHeight = 11;
-            const startX = x + 6;
-            const startY = canvas.height - CONFIG.GROUND_HEIGHT - h + 15;
+            const startX = x + 6, startY = canvas.height - CONFIG.GROUND_HEIGHT - h + 15;
             const cols = Math.max(2, Math.min(4, Math.floor((w - 12) / 20)));
             const rows = Math.min(4, Math.floor((h - 30) / 18));
             for (let col = 0; col < cols; col++) {
@@ -958,7 +929,6 @@
             return rect1.x < rect2.x + rect2.width && rect1.x + rect1.width > rect2.x &&
                    rect1.y < rect2.y + rect2.height && rect1.y + rect1.height > rect2.y;
         }
-
         function checkGooseCollision() {
             const gooseRect = { x: goosePolice.x + 20, y: goosePolice.y + 20, width: goosePolice.width - 40, height: goosePolice.height - 40 };
             return checkCollision(player, gooseRect);
